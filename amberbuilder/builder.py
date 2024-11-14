@@ -107,6 +107,22 @@ class Builder:
         return
     
     def _build(self):
+        """ Build the Amber simulation files.
+        
+        Parameters
+        ----------
+        None
+        
+        Returns
+        -------
+        None
+        
+        Raises
+        ------
+        ValueError
+            If no targets have been added.
+        
+        """ 
         print("Building the Amber simulation files")
         if len(self.target_files) == 0:
             raise ValueError("_build: No targets have been added")
@@ -165,6 +181,10 @@ class Builder:
 
     def _findbox(self):
         """ Orients the superunvierse along the z-axis and finds the box size.
+
+        This function orients the superuniverse along the z-axis and finds the box size. The box size is determined 
+        by the maximum and minimum coordinates of the superuniverse, with a buffer added to each side as specified by
+        the box_buffer attribute.
         
         Parameters
         ----------
@@ -186,12 +206,18 @@ class Builder:
         lengths = max_coords - min_coords + 2 * self.box_buffer
         self.superuniverse.dimensions = [lengths[0], lengths[1], lengths[2], 
                                          90.0, 90.0, 90.0]
+        # Write the oriented pdb file with dimensions
         with mda.Writer("oriented.pdb") as W:
             W.write(self.superuniverse.atoms)
         print("Selected box dimensions: ", self.superuniverse.dimensions)
+        return
         
     def _orient(self):
-        """ This function orients the system along the z-axis.
+        """ This function translates the superuniverse center of mass to the originand orients it along the z-axis.
+
+        This function translates the superuniverse center of mass to the origin and orients it along the z-axis.
+        The orientation is determined by the principal axis of the superuniverse, and the superuniverse is rotated
+        to align the principal axis with the z-axis.
         
         Parameters
         ----------
@@ -207,32 +233,60 @@ class Builder:
         
         """
         print("Orienting the system")
-        #aligned = self.superuniverse.atoms.align_principal_axis(2,[0,0,1])
+
+        # Translate the superuniverse to the origin
         self.super_com = self.superuniverse.atoms.center_of_mass()
         self.superuniverse.atoms.positions -= self.super_com
+
+        # Finds the principal axis of the superuniverse and rotates it to align with the z-axis
         p = self.superuniverse.atoms.principal_axes()[2]
         angle = np.degrees(mdamath.angle(p, [0,0,1]))
         ax = transformations.rotaxis(p, [0,0,1])
         aligned = self.superuniverse.atoms.rotateby(angle, ax)
 
+        # Update the superuniverse with the aligned coordinates
         self.superuniverse = aligned
+
+        # Store the rotation for later use
         self.rotation = [angle, ax]
         return
     
     def _add_more_ions(self):
+        """ This function adds additional ions to the box. Currently only NA and CL ions are supported.
+        
+        Parameters
+        ----------
+        None
+        
+        Returns
+        -------
+        None
+        
+        Raises
+        ------
+        NotImplementedError
+            If the box shape is octahedral.
+            
+        """
         print("Neutralizing the system")
+        if self.boxshape == "octahedral":
+            raise NotImplementedError("Adding more ions to an octahedral box has not been implemented yet")
         new_box = AddToBox()
         new_box.call(c="packed.pdb", a="NA.pdb", o="packed.pdb", RP=2.0, RW=2.0, na=self.add_na)
         new_box.call(c="packed.pdb", a="CL.pdb", o="packed.pdb", RP=2.0, RW=2.0, na=self.add_cl)
     
     def _pack_ortho_box(self):
-        """ This function packs the box with water and ions."""
+        """ This function packs the box with water and ions for an orthorhombic box. """
         print("Packing the box with water and ions")
+
+        # Find the volume fo the superuniverse and calculate the number of water molecules needed
+        # to fill the box to the target density.
         target_vol=self._supervolume()
         super_vol = self.ortho_volume(self.superuniverse.dimensions)
         water_vol = super_vol - target_vol
         nwaters = self.water_in_volume(water_vol, density=self.density)
 
+        # Add the water molecules to the box using AddToBox
         print(f"Adding {nwaters} water molecules to the box")
         # Add the solvent
         new_box = AddToBox()
@@ -241,7 +295,7 @@ class Builder:
         wats = test.select_atoms("resname WAT")
         print(f"Added {len(wats.residues)} water molecules to the box")
 
-        # Add the ions
+        # Add the ions to the box using AddToBox
         num_NA, num_CL = self.Get_Num_Ions("packed.pdb", self.ion_concentration)
         new_box.call(c="packed.pdb", a="NA.pdb", o="packed.pdb", RP=2.0, RW=2.0, na=num_NA)
         new_box.call(c="packed.pdb", a="CL.pdb", o="packed.pdb", RP=2.0, RW=2.0, na=num_CL)
@@ -249,7 +303,22 @@ class Builder:
         return
     
     def _pack_octa_box(self):
-        """ This function packs the box with water and ions for a truncated octahedron. """
+        """ This function packs the box with water and ions for a truncated octahedron using tleap.
+        
+        Parameters
+        ----------
+        None
+        
+        Returns
+        -------
+        None
+        
+        Raises
+        ------
+        NotImplementedError
+            If the box shape is octahedral.
+        
+        """
         # Find the max dimension - this will be the diameter of the truncated octahedron
         max_dim = self.superuniverse.dimensions[:3].max()
         rad = np.round(max_dim / 2)
@@ -296,6 +365,10 @@ class Builder:
     
     def _supervolume(self):
         """ This function calculates the volume of the superuniverse using a grid-based approach.
+
+        This function calculates the volume of the superuniverse using a grid-based approach. The superuniverse
+        is gridded with a spacing of 1 Å, and the volume is calculated by counting the number of grid points
+        within 1.4 Å of any atom in the superuniverse.
         
         Parameters
         ----------
@@ -360,6 +433,7 @@ class Builder:
     
     @staticmethod
     def gen_solvent_pdb(solvent):
+        """ Generate a pdb file for the solvent and ions."""
         assert solvent in ["tip3p", "tip4pew"], "Solvent must be either 'tip3p' or 'tip4pew'"
         if solvent == "tip3p":
             lines = """CRYST1  179.034  179.034  179.034 109.47 109.47 109.47 P 1           1
@@ -384,6 +458,7 @@ ATOM  18705  O   CL-  1868      18.351 -37.529  84.385  1.00  0.00"""
         with open(f"CL.pdb", "w") as W:
             W.write(lines)
         return
+    
     @staticmethod
     def ortho_volume(dimensions):
         """ Calculate the volume of a orthorhombic box.
@@ -444,7 +519,28 @@ ATOM  18705  O   CL-  1868      18.351 -37.529  84.385  1.00  0.00"""
     
     @staticmethod
     def Get_Num_Ions(pdb_file, concentration):
-        """ Get the number of ions needed for the system. """
+        """ Get the number of ions needed for the system. 
+        
+        Parameters
+        ----------
+        pdb_file : str
+            The path to the pdb file.
+        concentration : float
+            The concentration of the ions.
+        
+        Returns
+        -------
+        int
+            The number of NA ions.
+        int
+            The number of CL ions.
+        
+        Raises
+        ------ 
+        ValueError
+            If the concentration of ions is negative.
+        
+        """
         water_concentration = 55.
         u = mda.Universe(pdb_file)
         num_waters = len(u.select_atoms("resname WAT").residues)
