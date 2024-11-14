@@ -1,0 +1,8 @@
+source leaprc.water.tip4pew
+
+mol = loadpdb "tip4pew.pdb"
+
+solvateoct mol TIP4PEWBOX 9
+
+savepdb mol octa.pdb
+
