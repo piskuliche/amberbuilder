@@ -6,11 +6,11 @@ import numpy as np
 from pathlib import Path
 from scipy.linalg import eigh
 
-from amberbuilder.interfaces import AddToBox
+from amberbuilder.interfaces import AddToBox, Leap
 from MDAnalysis.lib import transformations, mdamath
 
 class Builder:
-    def __init__(self, boxshape="orthorhombic", box_buffer=10, neutralize=True, ion_concentration=0.14, add_na=0, add_cl=0, solvent='tip3p', density=0.997):
+    def __init__(self, boxshape="orthorhombic", box_buffer=10, neutralize=True, ion_concentration=0.14, add_na=0, add_cl=0, solvent='tip3p', density=0.997, leaprc=[]):
         """ This class builds a consistent set of boxes for amber simulations across a wide range of targets.
         
         Parameters
@@ -31,6 +31,8 @@ class Builder:
             The solvent to use. Either 'tip3p' or 'tip4pew'.
         density : float
             The density of the solvent.
+        leaprc : list
+            A list of leaprc files to use.
         
         """
         self.boxshape = str(boxshape)
@@ -41,6 +43,7 @@ class Builder:
         self.add_cl = int(add_cl)
         self.solvent = str(solvent)
         self.density = float(density)
+        self.leaprc = leaprc
 
         # Things that are set later
         self.target_files = []
@@ -205,6 +208,8 @@ class Builder:
         """
         print("Orienting the system")
         #aligned = self.superuniverse.atoms.align_principal_axis(2,[0,0,1])
+        self.super_com = self.superuniverse.atoms.center_of_mass()
+        self.superuniverse.atoms.positions -= self.super_com
         p = self.superuniverse.atoms.principal_axes()[2]
         angle = np.degrees(mdamath.angle(p, [0,0,1]))
         ax = transformations.rotaxis(p, [0,0,1])
@@ -244,6 +249,49 @@ class Builder:
         return
     
     def _pack_octa_box(self):
+        """ This function packs the box with water and ions for a truncated octahedron. """
+        # Find the max dimension - this will be the diameter of the truncated octahedron
+        max_dim = self.superuniverse.dimensions[:3].max()
+        rad = np.round(max_dim / 2)
+        # Build an octahedron with the same diameter around a solvent molecule using tleap.
+        newleap = []
+        newleap.append(f"source leaprc.water.{self.solvent}")
+        newleap.append(f"mol = loadpdb {self.solvent}.pdb")
+        newleap.append(f"solvateoct mol {self.solvent.upper()}BOX {rad}")
+        newleap.append("savepdb mol octbox.pdb")
+        newleap.append("quit")
+        with open("tleap.in", "w") as W:
+            W.write("\n".join(newleap))
+
+        leap = Leap()
+        leap.call(f="tleap.in")
+        # Merge the packed octahedron with the superuniverse, and write packed.pdb
+        u = mda.Universe("octbox.pdb")
+        superu = mda.Merge(self.superuniverse.atoms)
+        merge_u = mda.Merge(u.atoms, superu.atoms)
+        #TODO: This is NOT working - should try a work around.
+        no_overlap = merge_u.select_atoms("same resid as (not around 6.0 nucleic)")
+        print(f"Removing {len(merge_u.atoms) - len(no_overlap.atoms)} overlapping atoms")
+        with mda.Writer("packed.pdb") as W:
+            W.write(no_overlap.atoms)
+
+        # Add ions to the box using tleap.
+        num_NA, num_CL = self.Get_Num_Ions("packed.pdb", self.ion_concentration)
+        print(f"Adding {num_NA} NA ions and {num_CL} CL ions to the box")
+        newleap = []
+        for leap_line in self.leaprc:
+            newleap.append(leap_line)
+        newleap.append(f"source leaprc.water.{self.solvent}")
+        newleap.append(f"mol = loadpdb packed.pdb")
+        newleap.append(f"addionsrand mol Na+ {int(num_NA)} Cl- {int(num_CL)} 6.0")
+        newleap.append("savepdb mol packed.pdb")
+        newleap.append("quit")
+        with open("tleap.in", "w") as W:
+            W.write("\n".join(newleap))
+
+        leap = Leap()
+        leap.call(f="tleap.in")
+
         return
     
     def _supervolume(self):
@@ -267,7 +315,7 @@ class Builder:
         positions = self.superuniverse.atoms.positions
         min_coords = positions.min(axis=0)
         max_coords = positions.max(axis=0)
-        grid_spacing = 1.0 # Angstroms
+        grid_spacing = 1.0 # Angstromsself.superuniverse
 
         x = np.arange(min_coords[0], max_coords[0], grid_spacing)
         y = np.arange(min_coords[1], max_coords[1], grid_spacing)   
@@ -304,6 +352,7 @@ class Builder:
         atoms = u.select_atoms("resname WAT NA+ CL-")
         print(atoms)
         for i, target in enumerate(self.target_universes):
+            if self.boxshape == "octahedral": target.atoms.positions -= self.super_com
             newu = mda.Merge(atoms, target.atoms.rotateby(self.rotation[0], self.rotation[1]))
             with mda.Writer(f"output_target_{i}.pdb") as W:
                 W.write(newu.atoms)

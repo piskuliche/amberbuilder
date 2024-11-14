@@ -55,3 +55,10 @@ class AddToBox(SimpleInterface):
         """
         self.set_method("AddToBox")
         return
+    
+    
+class Leap(SimpleInterface):
+    def __init__(self) -> None:
+        """ This class is a simple interface to call the Leap program. """
+        self.set_method('tleap')
+        return
