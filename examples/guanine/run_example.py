@@ -4,7 +4,7 @@ import glob
 leaprc=['source leaprc.RNA.OL3',
         'source leaprc.gaff2']
 
-NewBuild = Builder(boxshape="octahedral",
+NewBuild = Builder(boxshape="orthorhombic",
                     box_buffer=10, 
                     neutralize=True, 
                     ion_concentration=0.14,
