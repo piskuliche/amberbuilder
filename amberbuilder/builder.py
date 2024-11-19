@@ -14,7 +14,8 @@ from amberbuilder import mdatools
 
 
 class Builder:
-    def __init__(self, boxshape="orthorhombic", box_buffer=10, neutralize=True, ion_concentration=0.14, add_na=0, add_cl=0, solvent='tip3p', density=0.997, leaprc=[]):
+    def __init__(self, boxshape="orthorhombic", box_buffer=10, neutralize=True, ion_concentration=0.14, 
+                 add_na=0, add_cl=0, solvent='tip3p', density=0.997, leaprc=[], nucleic=False):
         """ This class builds a consistent set of boxes for amber simulations across a wide range of targets.
         
         Parameters
@@ -424,6 +425,48 @@ class Builder:
 
         leap = Leap()
         leap.call(f=f"tleap.final_{i}.in")
+        return
+    
+    @staticmethod
+    def write_nucleic_neutralize(self, pdbfilename):
+        """ Write the tleap file for a nucleic acid system.
+        
+        Parameters
+        ----------
+        i : int
+            The index of the target file.
+        
+        Returns
+        -------
+        None
+        
+        Raises
+        ------
+        None
+        
+        """
+        lib_file = pdbfilename.replace('.pdb', '.lib')
+        frcmod_file = pdbfilename.replace('.pdb', '.frcmod')
+        if not Path(lib_file).exists():
+            raise FileNotFoundError(f"Could not find {lib_file}")
+        if not Path(frcmod_file).exists():
+            raise FileNotFoundError(f"Could not find {frcmod_file}")
+        
+        newleap = []
+        newleap.extend(self.leaprc)
+        newleap.append(f"loadoff {lib_file}")
+        newleap.append(f"loadamberparams {frcmod_file}")
+        newleap.append(f"mol = loadpdb {pdbfilename}")
+        newleap.append(f"addions mol Na+ {self.add_na}")
+        newleap.append(f"savepdb mol {pdbfilename}_ions.pdb")
+
+        tleap_file = f"tleap.nuc_neut.in"
+        with open(tleap_file, "w") as W:
+            W.write("\n".join(newleap))
+
+        leap = Leap()
+        leap.call(f=tleap_file)
+
         return
     
     def _clean(self):
