@@ -5,10 +5,13 @@ import numpy as np
 
 from pathlib import Path
 from scipy.linalg import eigh
+from MDAnalysis.lib import transformations, mdamath
+from rdkit import Chem
+from rdkit.Chem import AllChem, rdFMCS
 
 from amberbuilder.interfaces import AddToBox, Leap
 from amberbuilder import mdatools
-from MDAnalysis.lib import transformations, mdamath
+
 
 class Builder:
     def __init__(self, boxshape="orthorhombic", box_buffer=10, neutralize=True, ion_concentration=0.14, add_na=0, add_cl=0, solvent='tip3p', density=0.997, leaprc=[]):
@@ -131,21 +134,21 @@ class Builder:
             warnings.simplefilter("always")
             print("*********************************************")
             # Read the targets, and creates a superuniverse, and removes the COG
-            self.superuniverse = self._targetreader()
+            self.superuniverse = self._altreader()
+
             self.super_cog = self.superuniverse.atoms.center_of_geometry()
             self.superuniverse.atoms.positions -= self.super_cog
             mdatools.WritePDB(self.superuniverse, "superuniverse.pdb")
             print("*********************************************")
             # Rotates the superuniverse to the principal axes
-            #self.aligned_superuniverse, angle, ax = mdatools.OrientUniverse(self.superuniverse.atoms)
-            #self.rotation = (angle, ax)
-            #mdatools.WritePDB(self.superuniverse, "oriented.pdb")
             print("*********************************************")
             # Pack the box using TLEAP and add ions
             self._pack_box("superuniverse.pdb")
             print("*********************************************")
             # Split the targets and apply the rotation to each
-            self._split_targets()
+            self._remove_and_align()
+            self._write_empty_target()
+            self._combine_into_empty()
             print("*********************************************")
             print("MDAnalysis warnings:")
             for warning in w:
@@ -188,6 +191,48 @@ class Builder:
         assert super_natoms == total_atoms, f"Error: {super_natoms} atoms in superuniverse, {total_atoms} atoms in target files"
         print(f"Read {len(self.target_files)} target files into a superuniverse with {super_natoms} atoms.")
         return superuniverse
+    
+    def _altreader(self):
+        """ This function reads the target files individually as universes and uses them to build a superuniverse.
+        
+        This function reads the target files individually as universes and uses them to construct a superuniverse.
+        
+        Parameters
+        ----------
+        None
+        
+        Returns
+        -------
+        superuniverse : mda.Universe
+            The superuniverse containing all of the target files.
+            
+        Raises
+        ------
+        AssertionError
+            If the number of atoms in the superuniverse does not match the sum of the atoms in the target files.
+        
+        """
+        print("Reading the target files into a superuniverse.")
+        group_list = []
+        for i, target in enumerate(self.target_files):
+            u = mda.Universe(target)
+            self.target_universes.append(u)
+            if i == 0:
+                group_list.append(u.select_atoms("all"))
+            else:
+                if "LIG" in u.residues.resnames:
+                    ag = u.select_atoms("resname LIG")
+                    ag.residues.resnames = [f"REM"]
+                    group_list.append(ag)
+                else:
+                    raise ValueError(f"Error: Ligand not found in target file {target}")
+                
+        superuniverse = mda.Merge(*group_list)
+        print(superuniverse.atoms)
+        print(f"Read {len(self.target_files)} target files into a superuniverse with {superuniverse.atoms.n_atoms} atoms.")
+        return superuniverse
+
+        
 
 
     def _pack_box(self, pdbfilename):
@@ -262,6 +307,123 @@ class Builder:
             newu = mda.Merge(atoms, target.atoms)
             mdatools.WritePDB(newu, f"target_{i}.pdb")
         return
+    
+    def _remove_and_align(self):
+        """ This function removes the ligand """
+        u = mda.Universe("packed.pdb")
+        just_lig = u.select_atoms("resname LIG")
+        mdatools.WritePDB(just_lig, "ligand.pdb")
+        goal = Chem.MolFromPDBFile("ligand.pdb", removeHs=True)
+
+        for i, target in enumerate(self.target_universes):
+            print(np.unique(target.residues.resnames))
+            target_lig = target.select_atoms("resname LIG REM")
+            mdatools.WritePDB(target_lig, f"ligand_{i}.pdb")
+            tgt = Chem.MolFromPDBFile(f"ligand_{i}.pdb", removeHs=True)
+            
+            # Get the MCS
+            mcs = rdFMCS.FindMCS([goal, tgt])
+            common_smarts = mcs.smartsString
+            common_mol = Chem.MolFromSmarts(common_smarts)
+            
+            # Get the atom mapping
+            match1 = goal.GetSubstructMatch(common_mol)
+            match2 = tgt.GetSubstructMatch(common_mol)
+
+            # Align the molecules based on the common scaffold.
+            AllChem.AlignMol(tgt, goal, atomMap=list(zip(match2, match1)))
+
+            Chem.MolToPDBFile(tgt, f"aligned_{i}.pdb")
+        
+    def _write_empty_target(self):
+        """ Write an empty target file to the directory.
+        
+        Parameters
+        ----------
+        None
+        
+        Returns
+        -------
+        None
+        
+        Raises
+        ------
+        None
+        
+        """
+        u = mda.Universe("packed.pdb")
+        atoms = u.select_atoms("all and not resname LIG REM")
+        mdatools.WritePDB(atoms, "empty_target.pdb")
+            
+    def _combine_into_empty(self):
+        """ Combine the aligned ligands into an empty target file.
+        
+        Parameters
+        ----------
+        None
+        
+        Returns
+        -------
+        None
+        
+        Raises
+        ------
+        None
+        
+        """
+        base_target = mda.Universe("empty_target.pdb")
+        for i in range(len(self.target_universes)):
+            u = mda.Universe(f"aligned_{i}.pdb")
+            u.residues.resnames = [f"LIG"]
+            combo_target = mda.Merge(base_target.atoms, u.atoms)
+            mdatools.WritePDB(combo_target, f"complex_{i}.pdb")
+            self._write_final_tleap(i)
+        return
+    
+    def _write_final_tleap(self, i):
+        """ Write the final tleap file for the system.
+        
+        Parameters
+        ----------
+        None
+        
+        Returns
+        -------
+        None
+        
+        Raises
+        ------
+        None
+        
+        """
+        lib_file = self.target_files[i].replace('.pdb', '.lib')
+        frcmod_file = self.target_files[i].replace('.pdb', '.frcmod')
+        if not Path(lib_file).exists():
+            raise FileNotFoundError(f"Could not find {lib_file}")
+        if not Path(frcmod_file).exists():
+            raise FileNotFoundError(f"Could not find {frcmod_file}")    
+        
+        newleap = []
+        newleap.extend(self.leaprc)
+        newleap.append(f"source leaprc.water.{self.solvent}")
+        newleap.append(f"loadoff {lib_file}")
+        newleap.append(f"loadamberparams {frcmod_file}")
+        newleap.append(f"mol = loadpdb complex_{i}.pdb")
+
+        if self.add_na > 0:
+            newleap.append(f"addions mol Na+ {self.add_na}")
+        if self.add_cl > 0:
+            newleap.append(f"addions Cl- {self.add_cl}")
+        newleap.append(f"saveamberparm mol complex_{i}.parm7 complex_{i}.rst7")
+        newleap.append("quit")
+        with open(f"tleap.final_{i}.in", "w") as W:
+            W.write("\n".join(newleap))
+
+        leap = Leap()
+        leap.call(f=f"tleap.final_{i}.in")
+        return
+
+    
 
     @staticmethod
     def write_file(filename, lines):
