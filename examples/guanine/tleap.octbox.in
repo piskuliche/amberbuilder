@@ -1,5 +1,0 @@
-source leaprc.water.tip4pew
-mol = loadpdb oriented.pdb
-solvateoct mol TIP4PEWBOX 10.0
-savepdb mol octbox.pdb
-quit

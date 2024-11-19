@@ -1,0 +1,25 @@
+ATOM      1  O6  REM X  69       4.320   8.081   2.281  1.00  0.00           O  
+ATOM      2  C6  REM X  69       3.942   8.330   1.128  1.00  0.00           C  
+ATOM      3  N1  REM X  69       4.544   7.659   0.068  1.00  0.00           N  
+ATOM      4  C2  REM X  69       4.229   7.845  -1.255  1.00  0.00           C  
+ATOM      5  C3  REM X  69       4.997   7.028  -2.234  1.00  0.00           C  
+ATOM      6  F3  REM X  69       4.079   6.712  -3.235  1.00  0.00           F  
+ATOM      7  F2  REM X  69       5.446   5.843  -1.689  1.00  0.00           F  
+ATOM      8  F1  REM X  69       6.025   7.754  -2.806  1.00  0.00           F  
+ATOM      9  N3  REM X  69       3.300   8.694  -1.684  1.00  0.00           N  
+ATOM     10  C4  REM X  69       2.698   9.357  -0.660  1.00  0.00           C  
+ATOM     11  C5  REM X  69       2.943   9.241   0.688  1.00  0.00           C  
+ATOM     12  N7  REM X  69       2.121  10.103   1.403  1.00  0.00           N  
+ATOM     13  C8  REM X  69       1.409  10.711   0.501  1.00  0.00           C  
+ATOM     14  N9  REM X  69       1.702  10.305  -0.775  1.00  0.00           N  
+CONECT    1    2
+CONECT    2    3   11
+CONECT    3    4
+CONECT    4    5    9
+CONECT    5    6    7    8
+CONECT    9   10
+CONECT   10   11   14
+CONECT   11   12
+CONECT   12   13
+CONECT   13   14
+END

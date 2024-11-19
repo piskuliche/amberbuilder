@@ -150,6 +150,9 @@ class Builder:
             self._write_empty_target()
             self._combine_into_empty()
             print("*********************************************")
+            # Clean up the intermediate files
+            self._clean()
+            print("*********************************************")
             print("MDAnalysis warnings:")
             for warning in w:
                 print(f"Warnings: {warning.message}")
@@ -421,6 +424,69 @@ class Builder:
 
         leap = Leap()
         leap.call(f=f"tleap.final_{i}.in")
+        return
+    
+    def _clean(self):
+        """ Cleans up all of the intermediate files created during the build process.
+        
+        Parameters
+        ----------
+        None
+        
+        Returns
+        -------
+        None
+        
+        Raises
+        ------
+        None
+        
+        """
+        print("Cleaning up intermediate files")
+        temporary = Path("temporary/")
+        if not temporary.exists():
+            temporary.mkdir()
+        temporary_key = Path("temporary/keyfiles/")
+        if not temporary_key.exists():
+            temporary_key.mkdir()
+        temporary_aligned = Path("temporary/aligned/")
+        if not temporary_aligned.exists():
+            temporary_aligned.mkdir()
+        temporary_ligands = Path("temporary/ligands/")
+        if not temporary_ligands.exists():
+            temporary_ligands.mkdir()
+        temporary_tleap = Path("temporary/tleap/")
+        if not temporary_tleap.exists():
+            temporary_tleap.mkdir()
+        output = Path("outputs/")
+        if not output.exists():
+            output.mkdir()
+        
+        # Move the key files
+        key_files = ["box.pdb", "packed.pdb", "superuniverse.pdb", "ligand.pdb", "empty_target.pdb"]
+        for key_file in key_files:
+            if Path(key_file).exists():
+                Path(key_file).replace(temporary_key / key_file)
+        
+        # Move the aligned ligands
+        aligned_files = Path().glob("aligned_*.pdb")
+        for aligned_file in aligned_files:
+            aligned_file.replace(temporary_aligned / aligned_file)
+        
+        # Move the ligands
+        ligand_files = Path().glob("ligand_*.pdb")
+        for ligand_file in ligand_files:
+            ligand_file.replace(temporary_ligands / ligand_file)
+        
+        # Move the tleap files
+        tleap_files = Path().glob("tleap.*.in")
+        for tleap_file in tleap_files:
+            tleap_file.replace(temporary_tleap / tleap_file)
+        
+        # Move the ouput files
+        output_files = Path().glob("complex_*.*")
+        for output_file in output_files:
+            output_file.replace(output / output_file)
         return
 
     

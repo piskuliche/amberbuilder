@@ -1,0 +1,9 @@
+source leaprc.RNA.OL3
+source leaprc.gaff2
+source leaprc.water.tip4pew
+loadoff targets/DOG.lib
+loadamberparams targets/DOG.frcmod
+mol = loadpdb complex_2.pdb
+addions mol Na+ 67
+saveamberparm mol complex_2.parm7 complex_2.rst7
+quit

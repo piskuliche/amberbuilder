@@ -1,0 +1,5 @@
+source leaprc.water.tip4pew
+mol = loadpdb box.pdb
+addionsrand mol Na+ 31 Cl- 31 6.0
+savepdb mol packed.pdb
+quit
