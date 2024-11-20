@@ -49,6 +49,7 @@ class Builder:
         self.solvent = str(solvent)
         self.density = float(density)
         self.leaprc = leaprc
+        self.nucleic = nucleic
 
         # Things that are set later
         self.target_files = []
@@ -104,11 +105,28 @@ class Builder:
             If the target file is not found.
         
         """
+        import shutil
         print(f"Adding target {target}")
-        if Path(target).exists():
-            self.target_files.append(target)
+        lib_file = Path(target.replace(".pdb", ".lib"))
+        frcmod_file = Path(target.replace(".pdb", ".frcmod"))
+        pdb = Path(target)
+        target_dir = Path("targets/")
+        if not target_dir.exists():
+            target_dir.mkdir()
+        if pdb.exists():
+            if not self.nucleic:
+                shutil.copy(pdb, target_dir / pdb.name)
+            else:
+                self.write_nucleic_neutralize(str(pdb))
+            self.target_files.append(str(target_dir / pdb.name))
+            if not Path(lib_file).exists():
+                raise FileNotFoundError(f"Could not find {lib_file}")
+            if not Path(frcmod_file).exists():
+                raise FileNotFoundError(f"Could not find {frcmod_file}")
+            shutil.copy(lib_file, target_dir / lib_file.name)
+            shutil.copy(frcmod_file, target_dir / frcmod_file.name)
         else:
-            raise FileNotFoundError(f"Target {target} not found")
+            raise FileNotFoundError(f"Target {pdb} not found")
         return
     
     def _shell_build(self):
@@ -136,7 +154,6 @@ class Builder:
             print("*********************************************")
             # Read the targets, and creates a superuniverse, and removes the COG
             self.superuniverse = self._altreader()
-
             self.super_cog = self.superuniverse.atoms.center_of_geometry()
             self.superuniverse.atoms.positions -= self.super_cog
             mdatools.WritePDB(self.superuniverse, "superuniverse.pdb")
@@ -159,6 +176,7 @@ class Builder:
                 print(f"Warnings: {warning.message}")
             print("*********************************************")
             print("Finished building the Amber simulation files")
+    
 
     def _targetreader(self):
         """ This function reads the target files individually as universes and uses them to build a superuniverse.
@@ -273,6 +291,8 @@ class Builder:
 
         # Get the number of ions
         num_NA, num_CL = mdatools.GetNumIons("box.pdb", self.ion_concentration)
+        print(f"Adding {num_NA} NA ions and {num_CL} CL ions to the system.")
+
         newleap = []
         newleap.append(f"source leaprc.water.{self.solvent}")
         newleap.append(f"mol = loadpdb box.pdb")
@@ -400,6 +420,7 @@ class Builder:
         None
         
         """
+        name = self.target_files[i].replace('.pdb', '').replace('targets/', 'outputs/')
         lib_file = self.target_files[i].replace('.pdb', '.lib')
         frcmod_file = self.target_files[i].replace('.pdb', '.frcmod')
         if not Path(lib_file).exists():
@@ -413,21 +434,24 @@ class Builder:
         newleap.append(f"loadoff {lib_file}")
         newleap.append(f"loadamberparams {frcmod_file}")
         newleap.append(f"mol = loadpdb complex_{i}.pdb")
-
-        if self.add_na > 0:
-            newleap.append(f"addions mol Na+ {self.add_na}")
-        if self.add_cl > 0:
-            newleap.append(f"addions Cl- {self.add_cl}")
-        newleap.append(f"saveamberparm mol complex_{i}.parm7 complex_{i}.rst7")
+        if not self.nucleic:
+            if self.add_na > 0:
+                newleap.append(f"addions mol Na+ {self.add_na}")
+            if self.add_cl > 0:
+                newleap.append(f"addions Cl- {self.add_cl}")
+        newleap.append(f"saveamberparm mol {name}.parm7 {name}.rst7")
         newleap.append("quit")
         with open(f"tleap.final_{i}.in", "w") as W:
             W.write("\n".join(newleap))
+
+        outputpath = Path("outputs/")
+        if not outputpath.exists():
+            outputpath.mkdir()
 
         leap = Leap()
         leap.call(f=f"tleap.final_{i}.in")
         return
     
-    @staticmethod
     def write_nucleic_neutralize(self, pdbfilename):
         """ Write the tleap file for a nucleic acid system.
         
@@ -445,8 +469,10 @@ class Builder:
         None
         
         """
+        pdbfilename = str(pdbfilename)
         lib_file = pdbfilename.replace('.pdb', '.lib')
         frcmod_file = pdbfilename.replace('.pdb', '.frcmod')
+        outputpdb = pdbfilename.replace('initial/', 'targets/')
         if not Path(lib_file).exists():
             raise FileNotFoundError(f"Could not find {lib_file}")
         if not Path(frcmod_file).exists():
@@ -454,11 +480,12 @@ class Builder:
         
         newleap = []
         newleap.extend(self.leaprc)
+        newleap.append(f"source leaprc.water.{self.solvent}")
         newleap.append(f"loadoff {lib_file}")
         newleap.append(f"loadamberparams {frcmod_file}")
         newleap.append(f"mol = loadpdb {pdbfilename}")
         newleap.append(f"addions mol Na+ {self.add_na}")
-        newleap.append(f"savepdb mol {pdbfilename}_ions.pdb")
+        newleap.append(f"savepdb mol {outputpdb}")
 
         tleap_file = f"tleap.nuc_neut.in"
         with open(tleap_file, "w") as W:
@@ -501,9 +528,6 @@ class Builder:
         temporary_tleap = Path("temporary/tleap/")
         if not temporary_tleap.exists():
             temporary_tleap.mkdir()
-        output = Path("outputs/")
-        if not output.exists():
-            output.mkdir()
         
         # Move the key files
         key_files = ["box.pdb", "packed.pdb", "superuniverse.pdb", "ligand.pdb", "empty_target.pdb"]
@@ -525,11 +549,11 @@ class Builder:
         tleap_files = Path().glob("tleap.*.in")
         for tleap_file in tleap_files:
             tleap_file.replace(temporary_tleap / tleap_file)
+
+        complex_files = Path().glob("complex_*.pdb")
+        for complex_file in complex_files:
+            complex_file.unlink()
         
-        # Move the ouput files
-        output_files = Path().glob("complex_*.*")
-        for output_file in output_files:
-            output_file.replace(output / output_file)
         return
 
     

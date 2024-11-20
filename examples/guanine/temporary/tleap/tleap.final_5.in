@@ -4,6 +4,5 @@ source leaprc.water.tip4pew
 loadoff targets/NNG.lib
 loadamberparams targets/NNG.frcmod
 mol = loadpdb complex_5.pdb
-addions mol Na+ 67
-saveamberparm mol complex_5.parm7 complex_5.rst7
+saveamberparm mol outputs/NNG.parm7 outputs/NNG.rst7
 quit

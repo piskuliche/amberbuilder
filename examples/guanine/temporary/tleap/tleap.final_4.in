@@ -4,6 +4,5 @@ source leaprc.water.tip4pew
 loadoff targets/F3G.lib
 loadamberparams targets/F3G.frcmod
 mol = loadpdb complex_4.pdb
-addions mol Na+ 67
-saveamberparm mol complex_4.parm7 complex_4.rst7
+saveamberparm mol outputs/F3G.parm7 outputs/F3G.rst7
 quit

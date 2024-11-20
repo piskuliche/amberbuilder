@@ -1,0 +1,8 @@
+source leaprc.RNA.OL3
+source leaprc.gaff2
+source leaprc.water.tip4pew
+loadoff initial/NNG.lib
+loadamberparams initial/NNG.frcmod
+mol = loadpdb initial/NNG.pdb
+addions mol Na+ 67
+savepdb mol targets/NNG.pdb
