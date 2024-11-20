@@ -14,7 +14,7 @@ from amberbuilder import mdatools
 
 
 class Builder:
-    def __init__(self, boxshape="orthorhombic", box_buffer=10, neutralize=True, ion_concentration=0.14, 
+    def __init__(self, boxshape="orthorhombic", com_buffer=10, aq_buffer=16, neutralize=True, ion_concentration=0.14, 
                  add_na=0, add_cl=0, solvent='tip3p', density=0.997, leaprc=[], nucleic=False, verbose=False):
         """ This class builds a consistent set of boxes for amber simulations across a wide range of targets.
         
@@ -22,8 +22,10 @@ class Builder:
         ----------
         boxshape : str
             The shape of the box. Either 'orthorhombic' or 'octahedral'. [default='orthorhombic']
-        box_buffer : float
+        com_buffer : float
             The buffer between the solute and the edge of the box. [default=10]
+        aq_buffer : float
+            The buffer between the solute and the edge of the aqueous box. [default=16]
         neutralize : bool
             Whether to neutralize the system. [default=True]
         ion_concentration : float
@@ -45,7 +47,8 @@ class Builder:
         
         """
         self.boxshape = str(boxshape)
-        self.box_buffer = float(box_buffer)
+        self.com_buffer = float(com_buffer)
+        self.aq_buffer = float(aq_buffer)
         self.neutralize = bool(neutralize)
         self.ion_concentration = float(ion_concentration)
         self.add_na = int(add_na)
@@ -173,9 +176,15 @@ class Builder:
         if len(self.target_files) == 0:
             raise ValueError("_build: No targets have been added")
         
+        if aqueous:
+            self.box_buffer = self.aq_buffer
+        else:
+            self.box_buffer = self.com_buffer
+        
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             print("*********************************************")
+
             # Read the targets, and creates a superuniverse, and removes the COG
             self.superuniverse = self._target_reader(aqueous=aqueous)
             mdatools.WritePDB(self.superuniverse, "superuniverse.pdb")
@@ -251,6 +260,7 @@ class Builder:
         """
         print("Reading the target files into a superuniverse.")
         group_list = []
+        self.target_universes = []
         for i, target in enumerate(self.target_files):
             u = mda.Universe(target)
             self.target_universes.append(u)
@@ -555,10 +565,10 @@ class Builder:
         subfolder = "com" if not aqueous else "aq"
 
         temporary = Path("temporary/")
-        key = Path("temporary/keyfiles/")
-        aligned = Path("temporary/aligned/")
-        ligands = Path("temporary/ligands/")
-        tleap = Path("temporary/tleap/")
+        key = Path(f"temporary/keyfiles/{subfolder}")
+        aligned = Path(f"temporary/aligned/{subfolder}")
+        ligands = Path(f"temporary/ligands/{subfolder}")
+        tleap = Path(f"temporary/tleap/{subfolder}")
         for folder in [key, aligned, ligands, tleap]:
             if not folder.exists():
                 folder.mkdir(parents=True)
@@ -567,22 +577,22 @@ class Builder:
         key_files = ["box.pdb", "packed.pdb", "superuniverse.pdb", "ligand.pdb", "empty_target.pdb"]
         for key_file in key_files:
             if Path(key_file).exists():
-                Path(key_file).replace(key / subfolder / key_file)
+                Path(key_file).replace(key / key_file)
         
         # Move the aligned ligands
         aligned_files = Path().glob("aligned_*.pdb")
         for aligned_file in aligned_files:
-            aligned_file.replace(aligned / subfolder / aligned_file)
+            aligned_file.replace(aligned /  aligned_file)
         
         # Move the ligands
         ligand_files = Path().glob("ligand_*.pdb")
         for ligand_file in ligand_files:
-            ligand_file.replace(ligands / subfolder / ligand_file)
+            ligand_file.replace(ligands / ligand_file)
         
         # Move the tleap files
         tleap_files = Path().glob("tleap.*.in")
         for tleap_file in tleap_files:
-            tleap_file.replace(tleap / subfolder / tleap_file)
+            tleap_file.replace(tleap / tleap_file)
 
         complex_files = Path().glob("complex_*.pdb")
         for complex_file in complex_files:
@@ -623,7 +633,8 @@ class Builder:
         assert self.solvent in ["tip3p", "tip4pew"], "Solvent must be either 'tip3p' or 'tip4pew'"
         assert self.density > 0.0, "Density must be greater than 0.5 g/cm^3"
         assert self.density < 2.0, "Density must be less than 2.0 g/cm^3"
-        assert self.box_buffer >= 0, "Box buffer must be a positive number"
+        assert self.com_buffer >= 0, "Box buffer must be a positive number"
+        assert self.aq_buffer >= 0, "Aqueous buffer must be a positive number"
         assert self.ion_concentration >= 0, "Ion concentration must be a positive number"
         return
     
