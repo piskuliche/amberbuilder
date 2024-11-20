@@ -1,8 +1,0 @@
-source leaprc.RNA.OL3
-source leaprc.gaff2
-source leaprc.water.tip4pew
-loadoff targets/LIG.lib
-loadamberparams targets/LIG.frcmod
-mol = loadpdb complex_1.pdb
-saveamberparm mol outputs/LIG.parm7 outputs/LIG.rst7
-quit

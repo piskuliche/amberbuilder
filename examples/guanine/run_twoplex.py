@@ -9,5 +9,5 @@ leaprc=['source leaprc.RNA.OL3',
 
 setup_rbfe = rbfe_prep(leaprc=leaprc)
 setup_rbfe.add_edge("DOG", "NNG")
-setup_rbfe.add_edge("DOG", "NNG")
+setup_rbfe.add_edge("DOG", "NOG")
 setup_rbfe.prep_edges()

@@ -15,29 +15,33 @@ from amberbuilder import mdatools
 
 class Builder:
     def __init__(self, boxshape="orthorhombic", box_buffer=10, neutralize=True, ion_concentration=0.14, 
-                 add_na=0, add_cl=0, solvent='tip3p', density=0.997, leaprc=[], nucleic=False):
+                 add_na=0, add_cl=0, solvent='tip3p', density=0.997, leaprc=[], nucleic=False, verbose=False):
         """ This class builds a consistent set of boxes for amber simulations across a wide range of targets.
         
         Parameters
         ----------
         boxshape : str
-            The shape of the box. Either 'orthorhombic' or 'octahedral'.
+            The shape of the box. Either 'orthorhombic' or 'octahedral'. [default='orthorhombic']
         box_buffer : float
-            The buffer between the solute and the edge of the box.
+            The buffer between the solute and the edge of the box. [default=10]
         neutralize : bool
-            Whether to neutralize the system.
+            Whether to neutralize the system. [default=True]
         ion_concentration : float
-            The concentration of ions in the box.
+            The concentration of ions in the box. [default=0.14]
         add_na : int
-            The number of additional NA ions to add.
+            The number of additional NA ions to add. [default=0]
         add_cl : int
-            The number of additional CL ions to add.
+            The number of additional CL ions to add. [default=0]
         solvent : str
-            The solvent to use. Either 'tip3p' or 'tip4pew'.
+            The solvent to use. Either 'tip3p' or 'tip4pew'. [default='tip3p']
         density : float
-            The density of the solvent.
+            The density of the solvent. [default=0.997]
         leaprc : list
-            A list of leaprc files to use.
+            A list of leaprc files to use. [default=[]]
+        nucleic : bool
+            Whether the system is a nucleic acid. This impacts neutralization. [default=False]
+        verbose : bool
+            Whether to print verbosely. [default=False]
         
         """
         self.boxshape = str(boxshape)
@@ -50,6 +54,7 @@ class Builder:
         self.density = float(density)
         self.leaprc = leaprc
         self.nucleic = nucleic
+        self.verbosity = verbose
 
         # Things that are set later
         self.target_files = []
@@ -61,12 +66,16 @@ class Builder:
         self._test_input()
         pass
 
-    def build(self):
-        """ Build a set of Amber simulation files.
+    def build(self, aqueous=False):
+        """ This builds a set of amber simulation files using a shell thickness approach.
+
+        This build calls the shell_build function to build a set of amber simulation files using a shell thickness approach.
+        This also calls the aqueous build function to build a set of amber simulation files in the aqueous phase.
         
         Parameters
         ----------
-        None
+        aqueous : bool
+            Whether to build the system in the aqueous phase. [default=False]
         
         Returns
         -------
@@ -74,14 +83,13 @@ class Builder:
 
         Raises
         ------
-        ValueError
-            If no targets have been added.
+        RuntimeError
+            If an error occurs while building the Amber simulation files.
         
         """
-
         print("Building a set of Amber simulation files")
         try:
-            self._shell_build()
+            self._shell_build(aqueous=aqueous)
         except Exception as e:
             raise RuntimeError(f"An error occurred while building the Amber simulation files: \n {e}")
         return
@@ -89,6 +97,10 @@ class Builder:
 
     def add_target(self, target):
         """ Add a target to the list of targets.
+
+        This function takes a target (in some initial directory) and then it adds it to the list of targets to build. It also 
+        copies the target, and its associated lib and frcmod files to the targets directory. If the target is a nucleic acid, 
+        it will add the neutralizing ions to the system prior to moving the target to the targets directory.
         
         Parameters
         ----------
@@ -102,35 +114,99 @@ class Builder:
         Raises
         ------
         FileNotFoundError
-            If the target file is not found.
+            If one of the target files is not present.
         
         """
         import shutil
         print(f"Adding target {target}")
+        # Check that necessary files exist.
+        pdb = Path(target)
         lib_file = Path(target.replace(".pdb", ".lib"))
         frcmod_file = Path(target.replace(".pdb", ".frcmod"))
-        pdb = Path(target)
+        for file in [pdb, lib_file, frcmod_file]:
+            if not file.exists():
+                raise FileNotFoundError(f"Could not find {file}")
+        
+        # Create the target directory - this is where files are copied TO
         target_dir = Path("targets/")
         if not target_dir.exists():
             target_dir.mkdir()
-        if pdb.exists():
-            if not self.nucleic:
-                shutil.copy(pdb, target_dir / pdb.name)
-            else:
-                self.write_nucleic_neutralize(str(pdb))
-            self.target_files.append(str(target_dir / pdb.name))
-            if not Path(lib_file).exists():
-                raise FileNotFoundError(f"Could not find {lib_file}")
-            if not Path(frcmod_file).exists():
-                raise FileNotFoundError(f"Could not find {frcmod_file}")
-            shutil.copy(lib_file, target_dir / lib_file.name)
-            shutil.copy(frcmod_file, target_dir / frcmod_file.name)
-        else:
-            raise FileNotFoundError(f"Target {pdb} not found")
+        
+        # Copy the files to the target directory
+        if not self.nucleic: # If it's not a nucleic acid, just copy the files
+            shutil.copy(pdb, target_dir / pdb.name)
+        else: # If it is a nucleic acid, neutralize it first - this uses the self.add_na and self.add_cl values
+            self.write_nucleic_neutralize(str(pdb))
+
+        # Add the target to the list of targets
+        self.target_files.append(str(target_dir / pdb.name))
+
+        # Copy the lib and frcmod files to the target directory
+        shutil.copy(lib_file, target_dir / lib_file.name)
+        shutil.copy(frcmod_file, target_dir / frcmod_file.name)
+
         return
     
-    def _shell_build(self):
+    def _shell_build(self, aqueous=False):
         """ Build amber simulation files using a shell thickness approach.
+
+        This function builds the amber simulation files around a common target using a shell thickness approach. It reads the
+        target files into a superuniverse, translates the superuniverse to the center of geometry, and then  uses TLEAP to pack
+        the box with water and ions. The ligands are then aligned to the common scaffold, and written out as separate pdb, parm, and rst7 files.
+        
+        Parameters
+        ----------
+        aqueous : bool
+            Whether to build the system in the aqueous phase. [default=False]
+        
+        Returns
+        -------
+        None
+        
+        Raises
+        ------
+        ValueError
+            If no targets have been added.
+        
+        """ 
+        print("Building the Amber simulation files")
+        if len(self.target_files) == 0:
+            raise ValueError("_build: No targets have been added")
+        
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            print("*********************************************")
+            # Read the targets, and creates a superuniverse, and removes the COG
+            self.superuniverse = self._target_reader(aqueous=aqueous)
+            mdatools.WritePDB(self.superuniverse, "superuniverse.pdb")
+            print("*********************************************")
+            # Pack the box using TLEAP and add ions
+            self._pack_box("superuniverse.pdb")
+            print("*********************************************")
+            # Split the targets and apply the rotation to each
+            self._remove_and_align()
+            self._write_empty_target()
+            self._combine_into_empty(aqueous=aqueous)
+            print("*********************************************")
+            # Clean up the intermediate files
+
+            self._clean(aqueous=aqueous)
+
+            if self.verbosity:
+                print("*********************************************")
+                print("MDAnalysis warnings:")
+                for warning in w:
+                    print(f"Warnings: {warning.message}")
+            print("*********************************************")
+            print("Finished building the Amber simulation files")
+    
+        
+    def _aqueous_build(self):
+        """ Build amber aqueous simulation files using a shell thickness approach.
+
+        This function builds the amber simulation files for the ligands in the aqueous phase using a shell thickness approach. It reads the
+        target files into a superuniverse, translates the superuniverse to the center of geometry, and then uses TLEAP to pack the box with water
+        and ions. The ligands are then aligned to the common scaffold, and written out as separate pdb, parm, and rst7 files.
         
         Parameters
         ----------
@@ -146,78 +222,17 @@ class Builder:
             If no targets have been added.
         
         """ 
-        print("Building the Amber simulation files")
-        if len(self.target_files) == 0:
-            raise ValueError("_build: No targets have been added")
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            print("*********************************************")
-            # Read the targets, and creates a superuniverse, and removes the COG
-            self.superuniverse = self._altreader()
-            self.super_cog = self.superuniverse.atoms.center_of_geometry()
-            self.superuniverse.atoms.positions -= self.super_cog
-            mdatools.WritePDB(self.superuniverse, "superuniverse.pdb")
-            print("*********************************************")
-            # Rotates the superuniverse to the principal axes
-            print("*********************************************")
-            # Pack the box using TLEAP and add ions
-            self._pack_box("superuniverse.pdb")
-            print("*********************************************")
-            # Split the targets and apply the rotation to each
-            self._remove_and_align()
-            self._write_empty_target()
-            self._combine_into_empty()
-            print("*********************************************")
-            # Clean up the intermediate files
-            self._clean()
-            print("*********************************************")
-            print("MDAnalysis warnings:")
-            for warning in w:
-                print(f"Warnings: {warning.message}")
-            print("*********************************************")
-            print("Finished building the Amber simulation files")
+        raise NotImplementedError("Aqueous build not yet implemented")
+       
+
     
-
-    def _targetreader(self):
-        """ This function reads the target files individually as universes and uses them to build a superuniverse.
-
-        This function reads the target files individually as universes and uses them to construct a superuniverse.
-        
-        Parameters
-        ----------
-        None
-        
-        Returns
-        -------
-        superuniverse : mda.Universe
-            The superuniverse containing all of the target files.
-        
-        Raises
-        ------
-        AssertionError
-            If the number of atoms in the superuniverse does not match the sum of the atoms in the target files.
-        
-        """
-        print("Reading the target files into a superuniverse.")
-        group_list = []
-        total_atoms = 0
-        for target in self.target_files:
-            self.target_universes.append(mda.Universe(target))
-            group_list.append(self.target_universes[-1].select_atoms("all"))
-            total_atoms += self.target_universes[-1].atoms.n_atoms
-            
-        superuniverse = mda.Merge(*group_list)
-        super_natoms = superuniverse.atoms.n_atoms
-
-        # Check assertions
-        assert super_natoms == total_atoms, f"Error: {super_natoms} atoms in superuniverse, {total_atoms} atoms in target files"
-        print(f"Read {len(self.target_files)} target files into a superuniverse with {super_natoms} atoms.")
-        return superuniverse
-    
-    def _altreader(self):
+    def _target_reader(self, aqueous=False):
         """ This function reads the target files individually as universes and uses them to build a superuniverse.
         
-        This function reads the target files individually as universes and uses them to construct a superuniverse.
+        This function reads the target files into a superuniverse. These assume the first target file as the reference, and then 
+        adds the ligands from the other target files to the superuniverse. The additional ligands are renamed to REM, and the superuniverse is
+        returned. THUS, any neutralizing ions really only need be included in the FIRST target file, as those are the only ones that will be added to 
+        the superuniverse.
         
         Parameters
         ----------
@@ -239,8 +254,10 @@ class Builder:
         for i, target in enumerate(self.target_files):
             u = mda.Universe(target)
             self.target_universes.append(u)
-            if i == 0:
+            if i == 0 and not aqueous:
                 group_list.append(u.select_atoms("all"))
+            elif i == 0 and aqueous:
+                group_list.append(u.select_atoms("resname LIG"))
             else:
                 if "LIG" in u.residues.resnames:
                     ag = u.select_atoms("resname LIG")
@@ -250,15 +267,16 @@ class Builder:
                     raise ValueError(f"Error: Ligand not found in target file {target}")
                 
         superuniverse = mda.Merge(*group_list)
-        print(superuniverse.atoms)
         print(f"Read {len(self.target_files)} target files into a superuniverse with {superuniverse.atoms.n_atoms} atoms.")
         return superuniverse
 
-        
-
 
     def _pack_box(self, pdbfilename):
-        """ This function packs the box with water and ions. 
+        """ This function packs the box with water and ions using the TLEAP program.
+
+        This function packs the box with water and ions using the TLEAP program. It first solvates the box with water, and then adds ions
+        to the system based on the concentration. This happens in two subsequent steps, first it solvates the box with tleap, then it calculates the number of
+        water molecules to add ions to the system, and then it adds the ions to the system.
         
         Parameters
         ----------
@@ -286,6 +304,7 @@ class Builder:
 
         # Write and run leap
         self.write_file("tleap.box.in", newleap)
+        
         leap = Leap()
         leap.call(f="tleap.box.in")
 
@@ -293,74 +312,74 @@ class Builder:
         num_NA, num_CL = mdatools.GetNumIons("box.pdb", self.ion_concentration)
         print(f"Adding {num_NA} NA ions and {num_CL} CL ions to the system.")
 
+        # Use tleap to add the ions.
         newleap = []
         newleap.append(f"source leaprc.water.{self.solvent}")
         newleap.append(f"mol = loadpdb box.pdb")
         newleap.append(f"addionsrand mol Na+ {int(num_NA)} Cl- {int(num_CL)} 6.0")
         newleap.append("savepdb mol packed.pdb")
         newleap.append("quit")
-        with open("tleap.ions.in", "w") as W:
-            W.write("\n".join(newleap))
+        self.write_file("tleap.ions.in", newleap)
 
         leap = Leap()
         leap.call(f="tleap.ions.in")
-        return
+        return 
+    
+    def _remove_and_align(self):
+        """ This function removes the ligands from the superuniverse and aligns them to the common scaffold.
 
-    def _split_targets(self):
-        """ This function splits the targets to separate pdb files.
-        
+        This function removes the ligands from the superuniverse and aligns them to the common scaffold. It then writes the aligned ligands
+        to pdb files.
+
         Parameters
         ----------
         None
-        
+
         Returns
         -------
         None
-        
+
         Raises
         ------
         None
         
         """
-        print("Splitting the targets")
+        # Create a universe from the packed box
         u = mda.Universe("packed.pdb")
-        atoms = u.select_atoms("resname WAT NA+ CL-")
-        print(atoms)
-        for i, target in enumerate(self.target_universes):
-            target.atoms.positions -= self.super_cog
-            newu = mda.Merge(atoms, target.atoms)
-            mdatools.WritePDB(newu, f"target_{i}.pdb")
-        return
-    
-    def _remove_and_align(self):
-        """ This function removes the ligand """
-        u = mda.Universe("packed.pdb")
+
+        # Get JUST the ligand to ALIGN TO and read it into rdkit
         just_lig = u.select_atoms("resname LIG")
         mdatools.WritePDB(just_lig, "ligand.pdb")
         goal = Chem.MolFromPDBFile("ligand.pdb", removeHs=True)
 
+        # Loop over targets
         for i, target in enumerate(self.target_universes):
-            print(np.unique(target.residues.resnames))
+            # Get the ligand TO ALIGN from the universe and read it into rdkit
             target_lig = target.select_atoms("resname LIG REM")
             mdatools.WritePDB(target_lig, f"ligand_{i}.pdb")
             tgt = Chem.MolFromPDBFile(f"ligand_{i}.pdb", removeHs=True)
             
-            # Get the MCS
+            # Find the maximum common substructure
             mcs = rdFMCS.FindMCS([goal, tgt])
             common_smarts = mcs.smartsString
             common_mol = Chem.MolFromSmarts(common_smarts)
             
-            # Get the atom mapping
+            # Map the atoms to find the common atoms
             match1 = goal.GetSubstructMatch(common_mol)
             match2 = tgt.GetSubstructMatch(common_mol)
 
             # Align the molecules based on the common scaffold.
             AllChem.AlignMol(tgt, goal, atomMap=list(zip(match2, match1)))
 
+            # Write the aligned ligand to a pdb file
             Chem.MolToPDBFile(tgt, f"aligned_{i}.pdb")
+        return
         
     def _write_empty_target(self):
-        """ Write an empty target file to the directory.
+        """ Writes a version of the target file with the ligands removed.
+
+        This function writes a version of the target file with the ligands removed. This is used to combine the aligned ligands into a single
+        target file.
         
         Parameters
         ----------
@@ -379,8 +398,10 @@ class Builder:
         atoms = u.select_atoms("all and not resname LIG REM")
         mdatools.WritePDB(atoms, "empty_target.pdb")
             
-    def _combine_into_empty(self):
+    def _combine_into_empty(self, aqueous=False):
         """ Combine the aligned ligands into an empty target file.
+
+        This function combines the aligned ligands into an empty target file. This is used to create the final complex.
         
         Parameters
         ----------
@@ -401,15 +422,21 @@ class Builder:
             u.residues.resnames = [f"LIG"]
             combo_target = mda.Merge(base_target.atoms, u.atoms)
             mdatools.WritePDB(combo_target, f"complex_{i}.pdb")
-            self._write_final_tleap(i)
+            self._write_final_tleap(i, aqueous=aqueous)
         return
     
-    def _write_final_tleap(self, i):
+    def _write_final_tleap(self, i, aqueous=False):
         """ Write the final tleap file for the system.
+
+        This function writes the final tleap file for the system. This file is used to create the final amber simulation files, including
+        the parm and rst7 files.
         
         Parameters
         ----------
-        None
+        i : int
+            The index of the target file.
+        aqueous : bool
+            Whether the system is in the aqueous phase. [default=False]
         
         Returns
         -------
@@ -417,17 +444,26 @@ class Builder:
         
         Raises
         ------
-        None
+        FileNotFoundError
+            If the lib or frcmod files are not found.
         
         """
-        name = self.target_files[i].replace('.pdb', '').replace('targets/', 'outputs/')
+        subfolder = "com" if not aqueous else "aq"
+        molname = self.target_files[i].replace('.pdb', '').replace('targets/', '')
+        name = self.target_files[i].replace('.pdb', '').replace('targets/', f'outputs/{molname}/{subfolder}/')
         lib_file = self.target_files[i].replace('.pdb', '.lib')
         frcmod_file = self.target_files[i].replace('.pdb', '.frcmod')
-        if not Path(lib_file).exists():
-            raise FileNotFoundError(f"Could not find {lib_file}")
-        if not Path(frcmod_file).exists():
-            raise FileNotFoundError(f"Could not find {frcmod_file}")    
+
+        # Check that the lib and frcmod files exist
+        for file in [lib_file, frcmod_file]:
+            if not Path(file).exists():
+                raise FileNotFoundError(f"Could not find {file}")  
         
+        outputpath = Path(f"outputs/{molname}/{subfolder}/")
+        if not outputpath.exists():
+            outputpath.mkdir(parents=True)
+        
+        # Write the final tleap file
         newleap = []
         newleap.extend(self.leaprc)
         newleap.append(f"source leaprc.water.{self.solvent}")
@@ -441,12 +477,7 @@ class Builder:
                 newleap.append(f"addions Cl- {self.add_cl}")
         newleap.append(f"saveamberparm mol {name}.parm7 {name}.rst7")
         newleap.append("quit")
-        with open(f"tleap.final_{i}.in", "w") as W:
-            W.write("\n".join(newleap))
-
-        outputpath = Path("outputs/")
-        if not outputpath.exists():
-            outputpath.mkdir()
+        self.write_file(f"tleap.final_{i}.in", newleap)
 
         leap = Leap()
         leap.call(f=f"tleap.final_{i}.in")
@@ -454,6 +485,8 @@ class Builder:
     
     def write_nucleic_neutralize(self, pdbfilename):
         """ Write the tleap file for a nucleic acid system.
+
+        This script writes a tleap file to neutralize a nucleic acid system. It first loads the pdb file, and then adds the ions to the system.
         
         Parameters
         ----------
@@ -473,10 +506,9 @@ class Builder:
         lib_file = pdbfilename.replace('.pdb', '.lib')
         frcmod_file = pdbfilename.replace('.pdb', '.frcmod')
         outputpdb = pdbfilename.replace('initial/', 'targets/')
-        if not Path(lib_file).exists():
-            raise FileNotFoundError(f"Could not find {lib_file}")
-        if not Path(frcmod_file).exists():
-            raise FileNotFoundError(f"Could not find {frcmod_file}")
+        for file in [lib_file, frcmod_file]:
+            if not Path(file).exists():
+                raise FileNotFoundError(f"Could not find {file}")
         
         newleap = []
         newleap.extend(self.leaprc)
@@ -486,6 +518,7 @@ class Builder:
         newleap.append(f"mol = loadpdb {pdbfilename}")
         newleap.append(f"addions mol Na+ {self.add_na}")
         newleap.append(f"savepdb mol {outputpdb}")
+        newleap.append("quit")
 
         tleap_file = f"tleap.nuc_neut.in"
         with open(tleap_file, "w") as W:
@@ -496,12 +529,16 @@ class Builder:
 
         return
     
-    def _clean(self):
+    def _clean(self, aqueous=False):
         """ Cleans up all of the intermediate files created during the build process.
+
+        This function cleans up all of the intermediate build files created during the build process and sorts them
+        into the appropriate directories.
         
         Parameters
         ----------
-        None
+        aqueous : bool
+            Whether the system is in the aqueous phase. [default=False]
         
         Returns
         -------
@@ -509,46 +546,43 @@ class Builder:
         
         Raises
         ------
-        None
+        ValueError
+            If the subfolder is not 'com' or 'aq'.
         
         """
         print("Cleaning up intermediate files")
+
+        subfolder = "com" if not aqueous else "aq"
+
         temporary = Path("temporary/")
-        if not temporary.exists():
-            temporary.mkdir()
-        temporary_key = Path("temporary/keyfiles/")
-        if not temporary_key.exists():
-            temporary_key.mkdir()
-        temporary_aligned = Path("temporary/aligned/")
-        if not temporary_aligned.exists():
-            temporary_aligned.mkdir()
-        temporary_ligands = Path("temporary/ligands/")
-        if not temporary_ligands.exists():
-            temporary_ligands.mkdir()
-        temporary_tleap = Path("temporary/tleap/")
-        if not temporary_tleap.exists():
-            temporary_tleap.mkdir()
+        key = Path("temporary/keyfiles/")
+        aligned = Path("temporary/aligned/")
+        ligands = Path("temporary/ligands/")
+        tleap = Path("temporary/tleap/")
+        for folder in [key, aligned, ligands, tleap]:
+            if not folder.exists():
+                folder.mkdir(parents=True)
         
         # Move the key files
         key_files = ["box.pdb", "packed.pdb", "superuniverse.pdb", "ligand.pdb", "empty_target.pdb"]
         for key_file in key_files:
             if Path(key_file).exists():
-                Path(key_file).replace(temporary_key / key_file)
+                Path(key_file).replace(key / subfolder / key_file)
         
         # Move the aligned ligands
         aligned_files = Path().glob("aligned_*.pdb")
         for aligned_file in aligned_files:
-            aligned_file.replace(temporary_aligned / aligned_file)
+            aligned_file.replace(aligned / subfolder / aligned_file)
         
         # Move the ligands
         ligand_files = Path().glob("ligand_*.pdb")
         for ligand_file in ligand_files:
-            ligand_file.replace(temporary_ligands / ligand_file)
+            ligand_file.replace(ligands / subfolder / ligand_file)
         
         # Move the tleap files
         tleap_files = Path().glob("tleap.*.in")
         for tleap_file in tleap_files:
-            tleap_file.replace(temporary_tleap / tleap_file)
+            tleap_file.replace(tleap / subfolder / tleap_file)
 
         complex_files = Path().glob("complex_*.pdb")
         for complex_file in complex_files:

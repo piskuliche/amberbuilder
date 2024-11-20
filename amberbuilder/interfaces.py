@@ -20,6 +20,10 @@ class SimpleInterface:
         if "dry_run" in kwargs:
             dry_run = kwargs['dry_run']
             del kwargs['dry_run']
+        verbose = False
+        if "verbose" in kwargs:
+            verbose = kwargs['verbose']
+            del kwargs['verbose']
     
         command = [self.method]
         shell=False
@@ -39,8 +43,9 @@ class SimpleInterface:
         else:
             print("Executing command")
             proc = subprocess.run(command, shell=shell, encoding='utf-8', stdout=subprocess.PIPE)
-            for line in proc.stdout.split('\n'):
-                print(f"[{command[0]}] -> {line}")
+            if verbose:
+                for line in proc.stdout.split('\n'):
+                    print(f"[{command[0]}] -> {line}")
             print(f"Command Executed:")
             print(f"{' '.join(command)}")
         return

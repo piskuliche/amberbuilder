@@ -17,5 +17,7 @@ print(targets)
 for target in targets:
     NewBuild.add_target(target)
 
-NewBuild.build()
+NewBuild.build(aqueous=True)
+NewBuild.build(aqueous=False)
+
 

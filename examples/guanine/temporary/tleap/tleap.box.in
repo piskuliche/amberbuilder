@@ -1,5 +1,0 @@
-source leaprc.water.tip4pew
-mol = loadpdb superuniverse.pdb
-solvateoct mol TIP4PEWBOX 10.0
-savepdb mol box.pdb
-quit
