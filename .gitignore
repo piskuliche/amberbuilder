@@ -148,8 +148,8 @@ sqm*
 
 localtest/
 
-examples/guanine/outputs/*
-examples/guanine/temporary/*
-examples/guanine/leap.log
-examples/guanine/targets/*
+examples/01_GuanineRiboswitch/outputs/*
+examples/01_GuanineRiboswitch/temporary/*
+examples/01_GuanineRiboswitch/leap.log
+examples/01_GuanineRiboswitch/targets/*
 examples/ckd2/*
