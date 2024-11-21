@@ -8,14 +8,54 @@ from amberbuilder.interfaces import Leap
 
 class rbfe_prep:
     def __init__(self, leaprc=[]):
+        """ Prepare a two-state complex for relative binding free energy calculations.
+        
+        Parameters
+        ----------
+        leaprc : list
+            A list of leap commands to run.
+        
+        Returns
+        -------
+        None
+        
+        """
         self.edges = []
         self.leaprc = leaprc
         return
+    
     def add_edge(self, node1, node2):
+        """ Add an edge to the RBFE calculation.
+        
+        Parameters
+        ----------
+        node1 : str
+            The first node
+        node2 : str
+            The second node
+            
+        Returns
+        -------
+        None
+        
+        """
+
         self.edges.append([node1, node2])
         return
     
     def prep_edge(self, edge):
+        """ Prepare an edge for the RBFE calculation.
+        
+        Parameters
+        ----------
+        edge : list
+            A list of two nodes.
+        
+        Returns
+        -------
+        None
+        
+        """
         node0, node1 = self._read_edge_complex(edge)
         twoplex = self._build_twostates(node0, node1)
         twoplex = self._reresidue(twoplex)
@@ -27,6 +67,22 @@ class rbfe_prep:
         return 
     
     def prep_edges(self):
+        """ Prepare all edges for the RBFE calculation.
+        
+        Parameters
+        ----------
+        None
+        
+        Returns
+        -------
+        None
+        
+        Raises
+        ------
+        RuntimeError
+            If there is an error in preparing an edge.
+            
+        """
         for edge in self.edges:
             try:
                 self.prep_edge(edge)
@@ -35,6 +91,21 @@ class rbfe_prep:
         return
     
     def _read_edge_complex(self, edge):
+        """ Read the two nodes and build a two-state complex.
+        
+        Parameters
+        ----------
+        edge : list
+            A list of two nodes.
+        
+        Returns
+        -------
+        node0 : mda.Universe
+            The first node
+        node1 : mda.Universe
+            The second node
+        
+        """
         node0 = self.amber_universe(edge[0])
         node1 = self.amber_universe(edge[1])
         node0 = self.replace_resname(node0, "LIG", "L00")
@@ -96,7 +167,20 @@ class rbfe_prep:
 
 
     def _reresidue(self, universe):
-        """ Renumber residues in a universe."""
+        """ Renumber residues in a universe to count from 1.
+        
+        Parameters
+        ----------
+        universe : mda.Universe
+            The universe to renumber.
+        
+        Returns
+        -------
+        universe : mda.Universe
+            The renumbered universe.
+        
+        """
+
         resnum = 1
         for residue in universe.residues:
             residue.resid = resnum
@@ -104,6 +188,18 @@ class rbfe_prep:
         return universe
     
     def _releap(self, edge):
+        """ Run tleap to prepare the edge.
+        
+        Parameters
+        ----------
+        edge : list
+            A list of two nodes.
+        
+        Returns
+        -------
+        None
+        
+        """
         leap_lines = []
         for leap_line in self.leaprc:
             leap_lines.append(leap_line)
@@ -124,11 +220,23 @@ class rbfe_prep:
     
     
     def _clean_edge(self, edge):
+        """ Clean up the edge directory.
+        
+        Parameters
+        ----------
+        edge : list
+            A list of two nodes.
+        
+        Returns
+        -------
+        None
+        
+        """
         tleap_dir = Path("temporary/tleap/")
         tleap = Path("tleap.releap.in")
         if not tleap_dir.exists():
             tleap_dir.mkdir()
-            
+
         if tleap.exists():
             tleap.rename(tleap_dir / tleap)
 
@@ -149,11 +257,29 @@ class rbfe_prep:
     
     @staticmethod
     def amber_universe(shared_name):
+        """ Load an amber universe from a shared name parm7 and rst7 combination.
+        
+        Parameters
+        ----------
+        'shared_name' : str
+            The shared name of the universe.
+            
+        """
         return mda.Universe(f"outputs/{shared_name}.parm7", f"outputs/{shared_name}.rst7", topology_format = 'PARM7', format="INPCRD")
     
     @staticmethod
     def replace_resname(universe, oldresname, newresname):
-        """ Replace a resname """
+        """ Replace a resname in an MDAnalysis universe.
+        
+        Parameters
+        ----------
+        universe : mda.Universe
+            The universe to modify.
+        oldresname : str
+            The old resname.
+        newresname : str
+            The new resname.
+        """
         for residue in universe.residues:
             if residue.resname == oldresname:
                 residue.resname = newresname
