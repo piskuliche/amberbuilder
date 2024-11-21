@@ -152,3 +152,4 @@ examples/guanine/outputs/*
 examples/guanine/temporary/*
 examples/guanine/leap.log
 examples/guanine/targets/*
+examples/ckd2/*

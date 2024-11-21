@@ -124,19 +124,20 @@ class rbfe_prep:
     
     
     def _clean_edge(self, edge):
-        tleap_dir = Path("tleap/")
+        tleap_dir = Path("temporary/tleap/")
         tleap = Path("tleap.releap.in")
         if not tleap_dir.exists():
             tleap_dir.mkdir()
+            
         if tleap.exists():
             tleap.rename(tleap_dir / tleap)
 
         for file in Path(".").glob(f"twoplex_{edge[0]}_{edge[1]}*"):
             file.unlink()
         
-        outputs = Path(f"outputs/{edge[0]}_{edge[1]}")
+        outputs = Path(f"edges/{edge[0]}_{edge[1]}")
         if not outputs.exists():
-            outputs.mkdir()
+            outputs.mkdir(parents=True)
         unisc = Path("unisc.parm7")
         unisc_rst7 = Path("unisc.rst7")
         if unisc.exists():

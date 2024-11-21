@@ -158,3 +158,44 @@ def GetNumIons(pdb_file, concentration):
     else:
         raise ValueError("ERROR: Negative concentration of CL ions")
     return num_NA, num_CL
+
+def CheckComposition(pdb_file):
+    """ Checks the composition of the system.
+    
+    Parameters
+    ----------
+    pdb_file : str
+        The path to the pdb file.
+    
+    Returns
+    -------
+    None
+    
+    Raises
+    ------
+    ValueError
+        If the system is not neutral.
+
+    """
+    protein_resnames = ["ALA", "ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "GLY", "HIS", "ILE", "LEU", "LYS", "MET", "PHE", "PRO", "SER", "THR", "TRP", "TYR", "VAL"]
+    nucleic_resnames = ["DA", "DC", "DG", "DT", "A", "C", "G", "U", "G5", "C5", "A5", "U5", "G3", "C3", "A3", "U3"]
+    water_resnames = ["WAT", "HOH"]
+    ion_resnames = ["NA", "CL", "Na+", "Cl-","MG"]
+    u = mda.Universe(pdb_file)
+    resnames_found = u.residues.resnames
+    count = {}
+    for resname in resnames_found:
+        if resname not in count:
+            count[resname] = 1
+        else:
+            count[resname] += 1
+    
+    for key in [protein_resnames, nucleic_resnames, water_resnames, ion_resnames]:
+        total = 0
+        for resname in key:
+            if resname in count:
+                total += count[resname]
+        if total == 0:
+            continue
+        else:
+            print(f"Found {total} residues of type {key}")

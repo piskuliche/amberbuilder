@@ -198,7 +198,6 @@ class Builder:
             self._combine_into_empty(aqueous=aqueous)
             print("*********************************************")
             # Clean up the intermediate files
-
             self._clean(aqueous=aqueous)
 
             if self.verbosity:
@@ -316,7 +315,7 @@ class Builder:
         self.write_file("tleap.box.in", newleap)
         
         leap = Leap()
-        leap.call(f="tleap.box.in")
+        leap.call(f="tleap.box.in", verbose=self.verbosity)
 
         # Get the number of ions
         num_NA, num_CL = mdatools.GetNumIons("box.pdb", self.ion_concentration)
@@ -332,7 +331,7 @@ class Builder:
         self.write_file("tleap.ions.in", newleap)
 
         leap = Leap()
-        leap.call(f="tleap.ions.in")
+        leap.call(f="tleap.ions.in", verbose=self.verbosity)
         return 
     
     def _remove_and_align(self):
@@ -484,13 +483,15 @@ class Builder:
             if self.add_na > 0:
                 newleap.append(f"addions mol Na+ {self.add_na}")
             if self.add_cl > 0:
-                newleap.append(f"addions Cl- {self.add_cl}")
+                newleap.append(f"addions mol Cl- {self.add_cl}")
         newleap.append(f"saveamberparm mol {name}.parm7 {name}.rst7")
+        newleap.append(f"savepdb mol {name}.pdb")
         newleap.append("quit")
         self.write_file(f"tleap.final_{i}.in", newleap)
 
         leap = Leap()
-        leap.call(f=f"tleap.final_{i}.in")
+        leap.call(f=f"tleap.final_{i}.in", verbose=self.verbosity)
+        mdatools.CheckComposition(f"{name}.pdb")
         return
     
     def write_nucleic_neutralize(self, pdbfilename):
@@ -535,7 +536,7 @@ class Builder:
             W.write("\n".join(newleap))
 
         leap = Leap()
-        leap.call(f=tleap_file)
+        leap.call(f=tleap_file, verbose=self.verbosity)
 
         return
     
