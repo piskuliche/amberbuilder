@@ -1,4 +1,4 @@
-from amberbuilder import Builder
+from amberbuilder.builder import Builder
 from amberbuilder.rbfe_tools import rbfe_prep
 import glob
 

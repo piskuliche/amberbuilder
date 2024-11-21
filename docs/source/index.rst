@@ -23,15 +23,22 @@ For detailed examples, please refer to the `examples` directory in the source co
 
 .. toctree::
    :maxdepth: 4
-   :caption: Documentation
+   :caption: User Documentation
    :numbered:
    :hidden:
    
    ./documentation_pages/overview.rst
    ./documentation_pages/installation.rst
-   ./documentation_pages/recipes.rst
-   ./documentation_pages/stages.rst
-   ./documentation_pages/io.rst
-   ./documentation_pages/multiresp.rst
    ./documentation_pages/examples
+
+.. toctree::
+   :maxdepth: 4
+   :caption: Package Documentation
+   :numbered:
+   :hidden:
+   
+   ./documentation_pages/builder.rst
+   ./documentation_pages/mdatools.rst
+   ./documentation_pages/rbfe_tools.rst
+   ./documentation_pages/interfaces.rst
    

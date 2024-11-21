@@ -1,5 +1,4 @@
-from amberbuilder import Builder
-from amberbuilder.rbfe_tools import rbfe_prep
+from amberbuilder.builder import Builder
 import glob
 
 leaprc=['source leaprc.RNA.OL3',
@@ -11,7 +10,9 @@ NewBuild = Builder(boxshape="orthorhombic",
                     neutralize=True, 
                     ion_concentration=0.14,
                     add_na=67, add_cl=0,
-                    solvent="tip4pew", leaprc=leaprc, nucleic=True)
+                    solvent="tip4pew", 
+                    leaprc=leaprc, 
+                    nucleic=True)
 
 targets = glob.glob("initial/*.pdb")
 print(targets)
