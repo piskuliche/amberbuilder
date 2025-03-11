@@ -1,11 +1,8 @@
 import warnings
 import MDAnalysis as mda
-import numpy as np
-
+from typing import overload
 
 from pathlib import Path
-from scipy.linalg import eigh
-from MDAnalysis.lib import transformations, mdamath
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdFMCS
 
@@ -184,7 +181,6 @@ class Builder:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             print("*********************************************")
-
             # Read the targets, and creates a superuniverse, and removes the COG
             self.superuniverse = self._target_reader(aqueous=aqueous)
             mdatools.WritePDB(self.superuniverse, "superuniverse.pdb")
@@ -283,9 +279,10 @@ class Builder:
     def _pack_box(self, pdbfilename):
         """ This function packs the box with water and ions using the TLEAP program.
 
-        This function packs the box with water and ions using the TLEAP program. It first solvates the box with water, and then adds ions
-        to the system based on the concentration. This happens in two subsequent steps, first it solvates the box with tleap, then it calculates the number of
-        water molecules to add ions to the system, and then it adds the ions to the system.
+        This function packs the box with water and ions using the TLEAP program. It first solvates the box with water,
+        and then adds ions to the system based on the concentration. This happens in two subsequent steps first,
+        it solvates the box with tleap, then it calculates the number of water molecules to add ions to the system,
+        and then it adds the ions to the system.
         
         Parameters
         ----------
@@ -337,8 +334,8 @@ class Builder:
     def _remove_and_align(self):
         """ This function removes the ligands from the superuniverse and aligns them to the common scaffold.
 
-        This function removes the ligands from the superuniverse and aligns them to the common scaffold. It then writes the aligned ligands
-        to pdb files.
+        This function removes the ligands from the superuniverse and aligns them to the common scaffold.
+        It then writes the aligned ligands to pdb files.
 
         Parameters
         ----------
@@ -437,8 +434,8 @@ class Builder:
     def _write_final_tleap(self, i, aqueous=False):
         """ Write the final tleap file for the system.
 
-        This function writes the final tleap file for the system. This file is used to create the final amber simulation files, including
-        the parm and rst7 files.
+        This function writes the final tleap file for the system.
+        This file is used to create the final amber simulation files, including the parm and rst7 files.
         
         Parameters
         ----------

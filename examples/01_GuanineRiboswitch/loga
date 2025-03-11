@@ -1,0 +1,127 @@
+['initial/DOG.pdb', 'initial/ORG.pdb', 'initial/NOG.pdb', 'initial/F3G.pdb', 'initial/NNG.pdb', 'initial/LIG.pdb']
+Adding target initial/DOG.pdb
+Executing command
+Command Executed:
+tleap -f tleap.nuc_neut.in
+Adding target initial/ORG.pdb
+Executing command
+Command Executed:
+tleap -f tleap.nuc_neut.in
+Adding target initial/NOG.pdb
+Executing command
+Command Executed:
+tleap -f tleap.nuc_neut.in
+Adding target initial/F3G.pdb
+Executing command
+Command Executed:
+tleap -f tleap.nuc_neut.in
+Adding target initial/NNG.pdb
+Executing command
+Command Executed:
+tleap -f tleap.nuc_neut.in
+Adding target initial/LIG.pdb
+Executing command
+Command Executed:
+tleap -f tleap.nuc_neut.in
+Building a set of Amber simulation files
+Building the Amber simulation files
+*********************************************
+Reading the target files into a superuniverse.
+Read 6 target files into a superuniverse with 137 atoms.
+*********************************************
+Executing command
+Command Executed:
+tleap -f tleap.box.in
+Adding 5 NA ions and 5 CL ions to the system.
+Executing command
+Command Executed:
+tleap -f tleap.ions.in
+*********************************************
+Executing command
+Command Executed:
+tleap -f tleap.final_0.in
+Found 2181 residues of type ['WAT', 'HOH']
+Found 10 residues of type ['NA', 'CL', 'Na+', 'Cl-', 'MG']
+Executing command
+Command Executed:
+tleap -f tleap.final_1.in
+Found 2181 residues of type ['WAT', 'HOH']
+Found 10 residues of type ['NA', 'CL', 'Na+', 'Cl-', 'MG']
+Executing command
+Command Executed:
+tleap -f tleap.final_2.in
+Found 2181 residues of type ['WAT', 'HOH']
+Found 10 residues of type ['NA', 'CL', 'Na+', 'Cl-', 'MG']
+Executing command
+Command Executed:
+tleap -f tleap.final_3.in
+Found 2181 residues of type ['WAT', 'HOH']
+Found 10 residues of type ['NA', 'CL', 'Na+', 'Cl-', 'MG']
+Executing command
+Command Executed:
+tleap -f tleap.final_4.in
+Found 2181 residues of type ['WAT', 'HOH']
+Found 10 residues of type ['NA', 'CL', 'Na+', 'Cl-', 'MG']
+Executing command
+Command Executed:
+tleap -f tleap.final_5.in
+Found 2181 residues of type ['WAT', 'HOH']
+Found 10 residues of type ['NA', 'CL', 'Na+', 'Cl-', 'MG']
+*********************************************
+Cleaning up intermediate files
+*********************************************
+Finished building the Amber simulation files
+Building a set of Amber simulation files
+Building the Amber simulation files
+*********************************************
+Reading the target files into a superuniverse.
+Read 6 target files into a superuniverse with 2382 atoms.
+*********************************************
+Executing command
+Command Executed:
+tleap -f tleap.box.in
+Adding 32 NA ions and 32 CL ions to the system.
+Executing command
+Command Executed:
+tleap -f tleap.ions.in
+*********************************************
+Executing command
+Command Executed:
+tleap -f tleap.final_0.in
+Found 68 residues of type ['DA', 'DC', 'DG', 'DT', 'A', 'C', 'G', 'U', 'G5', 'C5', 'A5', 'U5', 'G3', 'C3', 'A3', 'U3']
+Found 12635 residues of type ['WAT', 'HOH']
+Found 131 residues of type ['NA', 'CL', 'Na+', 'Cl-', 'MG']
+Executing command
+Command Executed:
+tleap -f tleap.final_1.in
+Found 68 residues of type ['DA', 'DC', 'DG', 'DT', 'A', 'C', 'G', 'U', 'G5', 'C5', 'A5', 'U5', 'G3', 'C3', 'A3', 'U3']
+Found 12635 residues of type ['WAT', 'HOH']
+Found 131 residues of type ['NA', 'CL', 'Na+', 'Cl-', 'MG']
+Executing command
+Command Executed:
+tleap -f tleap.final_2.in
+Found 68 residues of type ['DA', 'DC', 'DG', 'DT', 'A', 'C', 'G', 'U', 'G5', 'C5', 'A5', 'U5', 'G3', 'C3', 'A3', 'U3']
+Found 12635 residues of type ['WAT', 'HOH']
+Found 131 residues of type ['NA', 'CL', 'Na+', 'Cl-', 'MG']
+Executing command
+Command Executed:
+tleap -f tleap.final_3.in
+Found 68 residues of type ['DA', 'DC', 'DG', 'DT', 'A', 'C', 'G', 'U', 'G5', 'C5', 'A5', 'U5', 'G3', 'C3', 'A3', 'U3']
+Found 12635 residues of type ['WAT', 'HOH']
+Found 131 residues of type ['NA', 'CL', 'Na+', 'Cl-', 'MG']
+Executing command
+Command Executed:
+tleap -f tleap.final_4.in
+Found 68 residues of type ['DA', 'DC', 'DG', 'DT', 'A', 'C', 'G', 'U', 'G5', 'C5', 'A5', 'U5', 'G3', 'C3', 'A3', 'U3']
+Found 12635 residues of type ['WAT', 'HOH']
+Found 131 residues of type ['NA', 'CL', 'Na+', 'Cl-', 'MG']
+Executing command
+Command Executed:
+tleap -f tleap.final_5.in
+Found 68 residues of type ['DA', 'DC', 'DG', 'DT', 'A', 'C', 'G', 'U', 'G5', 'C5', 'A5', 'U5', 'G3', 'C3', 'A3', 'U3']
+Found 12635 residues of type ['WAT', 'HOH']
+Found 131 residues of type ['NA', 'CL', 'Na+', 'Cl-', 'MG']
+*********************************************
+Cleaning up intermediate files
+*********************************************
+Finished building the Amber simulation files

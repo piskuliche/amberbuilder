@@ -153,3 +153,6 @@ examples/01_GuanineRiboswitch/temporary/*
 examples/01_GuanineRiboswitch/leap.log
 examples/01_GuanineRiboswitch/targets/*
 examples/ckd2/*
+
+
+daux/
